@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nexus_background">#05060F</color>
+    <color name="nexus_surface">#0A0D1B</color>
+    <color name="nexus_cyan">#00E5FF</color>
+    <color name="nexus_magenta">#FF3DCB</color>
+</resources>

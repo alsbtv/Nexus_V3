@@ -1,26 +1,33 @@
-# TASK — Nexus AI Android scaffold
+# TASK — Nexus AI (complete app build)
 
-GOAL: Generate the complete "Nexus AI" Android project (package `com.hiyako.app`)
-with the Deep Core Compose theme. No Gradle build is run at this stage (user request).
+## GOAL
+Build the complete Nexus AI Android app: premium Deep Core glassmorphism UI,
+Room-persisted chat history, and a Puter.js WebView bridge for real AI chat
+with popup sign-in. Push the finished source to GitHub.
 
-## Steps
-- [x] Create the project directory structure under `app/src/main`.
-- [x] Write `settings.gradle.kts`, root `build.gradle.kts`, `gradle.properties`.
-- [x] Write `app/build.gradle.kts` with all requested dependencies.
-- [x] Write `AndroidManifest.xml` (INTERNET permission, Nexus AI label, dark NoActionBar theme).
-- [x] Write `ui/theme/Color.kt` and `ui/theme/Theme.kt` (Deep Core palette).
-- [x] Write `MainActivity.kt` with the full-screen "Nexus AI is Ready" screen.
-- [x] Write `res/drawable/ic_launcher.xml` and `res/values/strings.xml`.
-- [x] Verify the resulting file tree.
+## STEPS
+- [x] Inspect existing scaffold (Compose, AGP 8.2.2, Kotlin 1.9.22, Room/KSP wired)
+- [x] Room layer — `data/ChatDatabase.kt` (chat_sessions + messages, DAO, singleton)
+- [x] `AiViewModel.kt` — AndroidViewModel + PuterEvents, session/title logic, streaming
+- [x] Puter bridge — `puter/PuterWebView.kt` + `assets/puter_bridge.html` (popup auth, streaming)
+- [x] UI components — Foundation, TopBar, NexusDrawer, EmptyState, Messages, ChatInput, Sheets
+- [x] `ui/ChatScreen.kt` — ModalNavigationDrawer shell + WebView command pump + wiring
+- [x] `MainActivity.kt`, theme expansion, manifest, gradle deps, CI workflow
+- [x] Static compile-safety review (missing NexusTopBar found + added, JS try/catch balanced,
+      invalid `weight` import removed, bridge class made public for reflection)
+- [ ] Commit + push to https://github.com/alsbtv/Nexus_V3
 
-## Decisions
-- AGP 8.2.2, Kotlin 1.9.22, Compose Compiler 1.5.8, Compose BOM 2024.02.00.
-- compileSdk/targetSdk 34, minSdk 24, Java/JVM 17.
-- Room compiler wired through KSP 1.9.22-1.0.17 so Room is usable immediately.
-- Dark-only "Deep Core" theme; no light color scheme by design.
-- Vector drawable launcher icon (not adaptive), per the initial spec.
-- No Gradle wrapper generated because no Gradle command was allowed yet.
+## DECISIONS
+- Compose (not WebView UI) — the scaffold is Compose and the brief names Compose files.
+- Puter.js runs in a 1dp WebView served from `https://appassets.androidplatform.net`
+  (real HTTPS origin, so localStorage/cookies for auth behave correctly).
+- Puter auth popups handled via `WebChromeClient.onCreateWindow` + a full-screen Dialog.
+- Streaming tokens flow JS -> `@JavascriptInterface` -> main-thread handlers -> StateFlow.
+- Selected model persisted in SharedPreferences; chats/messages in Room.
+- Curated model catalogue, merged with the live Puter model list when available.
+- CI publishes a debug APK release on every push to `main`.
 
 ## NOW
-Scaffold complete. Next: add the Gradle wrapper (or open the project in Android
-Studio) and run `./gradlew assembleDebug`.
+Source complete and statically reviewed. Push blocked by the environment:
+`/root/Nexus_V3` has no `.git` directory and every shell command fails with
+`libdl.so: cannot open shared object file`. Needs a working shell + git auth.

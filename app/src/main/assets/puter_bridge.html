@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Nexus Puter Bridge</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        html, body { margin: 0; padding: 0; background: #05060F; }
+    </style>
+</head>
+<body>
+<script>
+(function () {
+    "use strict";
+
+    var currentAbort = null;
+    var lastModelList = [];
+
+    function bridge(name, payload) {
+        try {
+            var api = window.NexusBridge;
+            if (api && typeof api[name] === "function") {
+                api[name](payload === undefined || payload === null ? "" : String(payload));
+            }
+        } catch (err) {
+            /* the bridge is best-effort; never crash the SDK over it */
+        }
+    }
+
+    function log(message) { bridge("onLog", message); }
+    function sdkReady() { return typeof puter !== "undefined"; }
+    function errorText(err) {
+        if (!err) return "Unknown error";
+        if (typeof err === "string") return err;
+        if (err.message) return String(err.message);
+        if (err.error && err.error.message) return String(err.error.message);
+        try { return JSON.stringify(err); } catch (e) { return String(err); }
+    }
+
+    window.addEventListener("error", function (event) {
+        log("window.error: " + (event && event.message ? event.message : "unknown"));
+    });
+    window.addEventListener("unhandledrejection", function (event) {
+        var reason = event && event.reason;
+        log("unhandled rejection: " + errorText(reason));
+    });
+
+    function prettify(id) {
+        var base = String(id || "").split("/").pop();
+        return base.replace(/[-_]/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+
+    function guessProvider(id) {
+        var value = String(id || "").toLowerCase();
+        if (value.indexOf("claude") !== -1) return "Anthropic";
+        if (value.indexOf("gemini") !== -1 || value.indexOf("google") !== -1) return "Google";
+        if (value.indexOf("llama") !== -1 || value.indexOf("meta") !== -1) return "Meta";
+        if (value.indexOf("deepseek") !== -1) return "DeepSeek";
+        if (value.indexOf("mistral") !== -1) return "Mistral";
+        if (value.indexOf("qwen") !== -1) return "Qwen";
+        if (value.indexOf("grok") !== -1) return "xAI";
+        if (value.indexOf("gpt") !== -1 || value.indexOf("openai") !== -1) return "OpenAI";
+        return "Puter";
+    }
+
+    function extractText(response) {
+        if (response === null || response === undefined) return "";
+        if (typeof response === "string") return response;
+        if (Array.isArray(response)) return response.map(extractText).join("");
+        if (typeof response.text === "string") return response.text;
+        if (response.message) {
+            if (typeof response.message === "string") return response.message;
+            if (typeof response.message.content === "string") return response.message.content;
+            if (Array.isArray(response.message.content)) {
+                return response.message.content.map(extractText).join("");
+            }
+        }
+        if (response.content) return extractText(response.content);
+        if (response.choices && response.choices.length) {
+            return extractText(response.choices[0].message || response.choices[0].delta || response.choices[0]);
+        }
+        return "";
+    }
+
+    /* ------------------------------------------------------------------ auth */
+
+    window.checkAuth = function () {
+        try {
+            if (!sdkReady()) {
+                bridge("onAuthState", "unavailable");
+                return;
+            }
+            Promise.resolve(puter.auth.isSignedIn()).then(function (signedIn) {
+                if (!signedIn) {
+                    bridge("onAuthState", "signed_out");
+                    return;
+                }
+                Promise.resolve(puter.auth.getUser())
+                    .then(function (user) { bridge("onAuth", JSON.stringify(user || {})); })
+                    .catch(function () { bridge("onAuth", "{}"); });
+            }).catch(function (err) {
+                log("checkAuth: " + errorText(err));
+                bridge("onAuthState", "signed_out");
+            });
+        } catch (err) {
+            log("checkAuth threw: " + errorText(err));
+        }
+    };
+
+    window.startSignIn = function () {
+        if (!sdkReady()) {
+            bridge("onError", "Puter.js did not load. Check your internet connection.");
+            return;
+        }
+        try {
+            Promise.resolve(puter.auth.signIn())
+                .then(function () {
+                    bridge("onLog", "sign-in completed");
+                    window.checkAuth();
+                    window.fetchModels();
+                })
+                .catch(function (err) {
+                    bridge("onError", "Sign in failed: " + errorText(err));
+                });
+        } catch (err) {
+            bridge("onError", "Sign in failed: " + errorText(err));
+        }
+    };
+
+    window.signOut = function () {
+        try {
+            if (!sdkReady()) { bridge("onAuthState", "signed_out"); return; }
+            Promise.resolve(puter.auth.signOut())
+                .then(function () { bridge("onAuthState", "signed_out"); })
+                .catch(function () { bridge("onAuthState", "signed_out"); });
+        } catch (err) {
+            bridge("onAuthState", "signed_out");
+        }
+    };
+
+    /* ---------------------------------------------------------------- models */
+
+    window.fetchModels = function () {
+        if (!sdkReady() || !puter.ai || typeof puter.ai.listModels !== "function") return;
+        try {
+            Promise.resolve(puter.ai.listModels()).then(function (result) {
+                var list = null;
+                if (Array.isArray(result)) list = result;
+                else if (result && Array.isArray(result.models)) list = result.models;
+                if (!list || !list.length) return;
+
+                var normalized = [];
+                for (var i = 0; i < list.length; i++) {
+                    var item = list[i];
+                    if (!item) continue;
+                    var id = typeof item === "string" ? item : (item.id || item.model || item.name);
+                    if (!id) continue;
+                    var name = typeof item === "string" ? prettify(id) : (item.name || item.title || prettify(id));
+                    var provider = typeof item === "string" ? guessProvider(id) : (item.provider || item.owner || guessProvider(id));
+                    normalized.push({ id: String(id), name: String(name), provider: String(provider) });
+                }
+                if (!normalized.length) return;
+                lastModelList = normalized;
+                bridge("onModels", JSON.stringify(normalized));
+            }).catch(function (err) {
+                log("listModels: " + errorText(err));
+            });
+        } catch (err) {
+            log("fetchModels threw: " + errorText(err));
+        }
+    };
+
+    /* ------------------------------------------------------------------ chat */
+
+    window.askPuter = function (messagesJson, model) {
+        if (!sdkReady()) {
+            bridge("onError", "Puter.js is not available. Check your connection and reopen the app.");
+            return;
+        }
+
+        var messages;
+        try {
+            messages = JSON.parse(messagesJson);
+        } catch (err) {
+            messages = [{ role: "user", content: String(messagesJson || "") }];
+        }
+        if (!Array.isArray(messages) || !messages.length) {
+            bridge("onError", "Nothing to send.");
+            return;
+        }
+
+        currentAbort = (typeof AbortController !== "undefined") ? new AbortController() : null;
+        var abort = currentAbort;
+        var full = "";
+        var stopped = false;
+
+        var options = { model: model, stream: true };
+        if (abort) options.signal = abort.signal;
+
+        try {
+            Promise.resolve(puter.ai.chat(messages, options))
+                .then(function (response) {
+                    if (response && typeof response[Symbol.asyncIterator] === "function") {
+                        return (async function () {
+                            for await (var part of response) {
+                                if (abort && abort.signal.aborted) { stopped = true; break; }
+                                var text = extractText(part);
+                                if (text) {
+                                    full += text;
+                                    bridge("onToken", text);
+                                }
+                            }
+                        })();
+                    }
+                    var single = extractText(response);
+                    if (single) {
+                        full = single;
+                        bridge("onToken", single);
+                    }
+                    return null;
+                })
+                .then(function () {
+                    if (stopped) return;
+                    bridge("onComplete", full);
+                })
+                .catch(function (err) {
+                    if (abort && abort.signal.aborted) return;
+                    bridge("onError", errorText(err));
+                })
+                .finally(function () { currentAbort = null; });
+        } catch (err) {
+            bridge("onError", errorText(err));
+        }
+    };
+
+    window.stopGeneration = function () {
+        try {
+            if (currentAbort) currentAbort.abort();
+        } catch (err) { /* no-op */ }
+        bridge("onStopped", "");
+    };
+
+    /* ------------------------------------------------------------------ boot */
+
+    function boot() {
+        bridge("onReady", "");
+        setTimeout(window.checkAuth, 900);
+        setTimeout(window.fetchModels, 1400);
+    }
+
+    if (document.readyState === "complete") {
+        setTimeout(boot, 60);
+    } else {
+        window.addEventListener("load", function () { setTimeout(boot, 60); });
+    }
+})();
+</script>
+</body>
+</html>
