@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Deep Core hexagon -->
+    <path
+        android:fillColor="#0A0D1B"
+        android:pathData="M54,8 L92,30 L92,78 L54,100 L16,78 L16,30 Z"
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2.5" />
+
+    <!-- Inner magenta ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,18 L83,35 L83,73 L54,90 L25,73 L25,35 Z"
+        android:strokeColor="#33FF3DCB"
+        android:strokeWidth="1.5" />
+
+    <!-- Stylised N mark -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M36,78 L36,30 L46,30 L62,58 L62,30 L72,30 L72,78 L62,78 L46,50 L46,78 Z" />
+
+    <!-- Magenta core -->
+    <path
+        android:fillColor="#FF3DCB"
+        android:pathData="M54,84 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+</vector>
