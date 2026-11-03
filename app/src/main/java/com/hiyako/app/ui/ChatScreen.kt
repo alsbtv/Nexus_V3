@@ -74,7 +74,10 @@ fun ChatScreen(viewModel: AiViewModel = viewModel()) {
     LaunchedEffect(webView) {
         val target = webView ?: return@LaunchedEffect
         viewModel.commands.collect { js ->
-            target.evaluateJavascript(js, null)
+            // The engine can be torn down at any moment (renderer death, activity
+            // recreation). A failed dispatch must never crash the UI thread.
+            runCatching { target.evaluateJavascript(js, null) }
+                .onFailure { android.util.Log.w("NexusAI", "JS dispatch failed", it) }
         }
     }
 
@@ -175,7 +178,9 @@ fun ChatScreen(viewModel: AiViewModel = viewModel()) {
                         EmptyStateGrid(
                             onAction = { prompt ->
                                 input = prompt
-                                focusRequester.requestFocus()
+                                // requestFocus() throws if the field hasn't been
+                                // placed yet — keep the tap harmless.
+                                runCatching { focusRequester.requestFocus() }
                             }
                         )
                     } else {

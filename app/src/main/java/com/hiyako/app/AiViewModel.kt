@@ -21,6 +21,8 @@ import com.hiyako.app.ui.theme.NeonMagenta
 import com.hiyako.app.ui.theme.NeonMagentaMuted
 import com.hiyako.app.ui.theme.SignalGreen
 import com.hiyako.app.ui.theme.SolarAmber
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -104,7 +106,7 @@ data class AiUiState(
  */
 class AiViewModel(application: Application) : AndroidViewModel(application), PuterEvents {
 
-    private val dao: ChatDao = ChatDatabase.get(application).chatDao()
+    private val dao: ChatDao = ChatDatabase.get(application.applicationContext).chatDao()
     private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private val initialModel: ModelOption =
@@ -118,11 +120,22 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
     private val _commands = Channel<String>(Channel.BUFFERED)
     val commands: Flow<String> = _commands.receiveAsFlow()
 
+    /**
+     * Storage work runs on IO and can never take the process down: a failed
+     * Room query surfaces as a friendly banner instead of a crash.
+     */
+    private val safeStorage = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Storage task failed", throwable)
+        _uiState.update {
+            it.copy(error = "Local storage hiccup — please try that again.")
+        }
+    }
+
     private var messageJob: Job? = null
     private var stopRequested = false
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             dao.observeSessions().collect { sessions ->
                 _uiState.update { state ->
                     val active = sessions.firstOrNull { it.id == state.currentSessionId }
@@ -133,7 +146,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
                 }
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             dao.observeMessageCount().collect { count ->
                 _uiState.update { it.copy(totalMessages = count) }
             }
@@ -174,7 +187,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
     }
 
     fun deleteSession(sessionId: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             dao.deleteSession(sessionId)
             if (_uiState.value.currentSessionId == sessionId) newChat()
         }
@@ -183,7 +196,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
     fun clearCurrentChat() {
         val sessionId = _uiState.value.currentSessionId ?: return
         stopRequested = true
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             _commands.send("window.stopGeneration();")
             dao.clearMessages(sessionId)
             _uiState.update { it.copy(isGenerating = false, streamingText = "", error = null) }
@@ -192,7 +205,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
 
     private fun observeMessages(sessionId: Long) {
         messageJob?.cancel()
-        messageJob = viewModelScope.launch {
+        messageJob = viewModelScope.launch(safeStorage + Dispatchers.IO) {
             dao.observeMessages(sessionId).collect { rows ->
                 _uiState.update { it.copy(messages = rows.map { row -> row.toUi() }) }
             }
@@ -214,7 +227,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
         }
 
         stopRequested = false
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             val existingId = _uiState.value.currentSessionId
             var sessionId: Long = existingId ?: 0L
             if (existingId == null) {
@@ -271,7 +284,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
         _uiState.update { it.copy(isGenerating = false, streamingText = "") }
 
         if (sessionId == null) return
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             val body = content.trim()
             if (body.isNotEmpty()) {
                 dao.insertMessage(
@@ -307,7 +320,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
     }
 
     private fun touchSession(sessionId: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             dao.getSession(sessionId)?.let { session ->
                 dao.updateSession(session.copy(updatedAt = System.currentTimeMillis()))
             }
@@ -418,7 +431,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application), Put
             _uiState.update { it.copy(error = friendly) }
             return
         }
-        viewModelScope.launch {
+        viewModelScope.launch(safeStorage + Dispatchers.IO) {
             val partial = state.streamingText.trim()
             if (partial.isNotEmpty()) {
                 dao.insertMessage(
