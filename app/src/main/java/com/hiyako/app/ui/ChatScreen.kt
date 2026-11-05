@@ -30,7 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
@@ -225,8 +225,9 @@ fun ChatScreen(viewModel: AiViewModel = viewModel()) {
             PuterWebView(
                 events = viewModel,
                 modifier = Modifier
-                    .size(1.dp)
-                    .align(Alignment.TopStart),
+                            .size(1.dp)
+                            .alpha(0f)
+                            .align(Alignment.TopStart),
                 onWebViewReady = { webView = it }
             )
         }

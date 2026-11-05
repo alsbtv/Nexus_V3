@@ -370,7 +370,11 @@ fun PuterWebView(
                             }
                         }
 
-                        loadUrl(BRIDGE_URL)
+// Defer loadUrl to next frame so the first UI frame renders
+                        // before the WebView starts its heavy initialization.
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            runCatching { loadUrl(BRIDGE_URL) }
+                        }, 150L)
 
                         Handler(Looper.getMainLooper()).post {
                             mainWebView = this
