@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.hiyako.app"
+    namespace = "com.nexus.ai"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.hiyako.app"
+        applicationId = "com.nexus.ai"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -83,7 +83,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Image loading
-    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Media playback
     implementation("androidx.media3:media3-exoplayer:1.2.1")
