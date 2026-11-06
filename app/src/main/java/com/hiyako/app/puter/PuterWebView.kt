@@ -10,7 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.util.Log
-import android.view.ViewGroup
+import android.view.WindowManager
+import androidx.compose.runtime.DisposableEffect
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -387,51 +388,28 @@ fun PuterWebView(
 
     val popup = popupWebView
     if (popup != null && popupVisible) {
-        Dialog(
-            onDismissRequest = { closePopup() },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
-        ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(DeepSpaceBlack)
-            ) {
-                // A spinner sits behind the page so a slow sign-in never looks
-                // like the app died on a black screen.
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = NeonCyan, strokeWidth = 2.dp)
-                }
-
-                AndroidView(
-                    factory = { popup },
-                    modifier = Modifier.fillMaxSize()
+        // Use an Android Dialog with fullscreen window params so the popup
+        // is not squished into a tiny window.
+        DisposableEffect(popup) {
+            val dialog = android.app.Dialog(context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            dialog.window?.apply {
+                setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
                 )
+                setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            }
+            // Ensure the WebView fills the dialog window.
+            popup.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            dialog.setContentView(popup)
+            dialog.setOnDismissListener { closePopup() }
+            dialog.show()
 
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(Modifier.weight(1f))
-                    Surface(
-                        shape = CircleShape,
-                        color = GlassTintStrong.copy(alpha = 0.92f),
-                        contentColor = TextPrimary
-                    ) {
-                        IconButton(onClick = { closePopup() }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close sign in",
-                                tint = TextSecondary
-                            )
-                        }
-                    }
-                }
+            onDispose {
+                dialog.dismiss()
             }
         }
     }
