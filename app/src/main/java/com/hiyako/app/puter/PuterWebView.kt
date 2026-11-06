@@ -362,8 +362,7 @@ fun PuterWebView(
                                     return false
                                 }
 
-                                popupWebView = popup
-                                popupVisible = false
+                                popupVisible = true
                                 transport.webView = popup
                                 resultMsg.sendToTarget()
                                 return true

@@ -113,6 +113,16 @@
             bridge("onError", "Puter.js did not load. Check your internet connection.");
             return;
         }
+        // Force navigator.userActivation to true so Puter.js calls window.open()
+        // directly instead of showing a hidden <puter-dialog> that nobody clicks.
+        try {
+            Object.defineProperty(navigator, "userActivation", {
+                get: function () {
+                    return { hasBeenActive: true, isActive: true };
+                },
+                configurable: true
+            });
+        } catch (e) { /* may already be defined */ }
         try {
             Promise.resolve(puter.auth.signIn())
                 .then(function () {
