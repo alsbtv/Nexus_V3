@@ -10,7 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.util.Log
-import android.view.WindowManager
+import android.view.ViewGroup
 import androidx.compose.runtime.DisposableEffect
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
